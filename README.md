@@ -78,6 +78,8 @@ docker compose -f docker/docker-compose.yml up -d
 docker ps
 ```
 
+![Docer service running](backend/helper_images/docker.png)
+
 ## 2) Create db and enable pgvector
 
 ```bash
@@ -134,12 +136,18 @@ b) create a helper, say init_schema() with above queries, in db.py, then
 python -c "import db; db.init_schema()"
 ```
 
+![Documents table schema](backend/helper_images/documents_schema.png)
+
+![Chunks table schema](backend/helper_images/chunks_schema.png)
+
 ## 5) Ingest sample file
 
 ```bash
 cd backend
 python ingest.py --path ../sample/your-file.pdf --doc-title "Your File"
 ```
+
+![Ingestion success](backend/helper_images/ingestion.png)
 
 # Usage tips
 
