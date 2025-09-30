@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: pgvector-db
+    # bind only to localhost so it's not reachable from outside
+    ports: ["127.0.0.1:5432:5432"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # where is the pass saved?
+      POSTGRES_DB: ${POSTGRES_DB}
+    # healthcheck:
+    #   test: ["CMD-SHELL", "pg_isready -U postgres -d ragdb"]
+    #   interval: 5s
+    #   timeout: 3s
+    #   retries: 10
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+volumes:
+  pgdata:

@@ -1,0 +1,22 @@
+# python
+__pycache__/
+*.pyc
+.venv/
+*.pyo
+*.pyd
+*.egg-info/
+
+# Environment / secrets
+*.env
+backend/*.env
+*.log
+.env.*
+
+# Docker volumes
+pgdata/
+docker/init/*.sql~
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/

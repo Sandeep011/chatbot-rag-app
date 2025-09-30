@@ -1,0 +1,28 @@
+# Core database + ORM
+SQLAlchemy>=2.0
+psycopg2-binary>=2.9       # Postgres driver
+
+# Vector DB / ANN
+pgvector>=0.2.5            # SQLAlchemy extension for pgvector
+
+# AI / embeddings
+sentence-transformers>=2.2 # Hugging Face wrapper for SBERT models
+
+# Parsing
+pypdf>=4.0                 # Lightweight PDF parser
+beautifulsoup4>=4.12       # For HTML/URL parsing
+unstructured               # (optional) fallback for messy docs
+
+# Config & logging
+python-dotenv>=1.0
+loguru>=0.7
+
+# Web framework (later in Week 2+)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+
+# Testing
+pytest>=8.0
+
+# Progress bars (optional, cosmetic)
+tqdm>=4.66
