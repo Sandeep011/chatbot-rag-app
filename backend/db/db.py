@@ -21,14 +21,6 @@ def get_conn():
         dbname=os.getenv("PG_DATABASE"),
     )
 
-    # conn = psycopg2.connect(
-    #     host=os.getenv("PG_HOST", "localhost"),
-    #     port=int(os.getenv("PG_PORT", "5432")),
-    #     user=os.getenv("PG_USER", "postgres"),
-    #     password=os.getenv("PG_PASSWORD", "postgres"),
-    #     dbname=os.getenv("PG_DATABASE", "rag"),
-    # )
-
     register_vector(conn) # allows us to pass python lists which will be interpreted as vector columns
     return conn
 

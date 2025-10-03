@@ -53,8 +53,7 @@ def text_to_chunks(text: str, max_chars: int = 900, overlap: int = 150):
         chunks.append(chunk)
         if end >= text_size:
             break
-        start = end - overlap
-        # start = max(0, end - overlap)
+        start = max(0, end - overlap)
     
     return chunks
 
