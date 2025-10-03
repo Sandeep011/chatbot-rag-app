@@ -11,7 +11,7 @@ The model is under development. Ingestion is available for use and experimentati
 1) PDF/text ingestion with deterministic chunking
 2) Embeddings stored in Postgres via pgvector
 3) Dockerized local stack
-4) kNN retrieval with metadata filtering (in progress)
+4) kNN retrieval with metadata filtering
 5) Simple API for asking questions (coming soon)
 
 ## Repo structure
@@ -23,7 +23,7 @@ The model is under development. Ingestion is available for use and experimentati
 │  ├─ db.py                 # DB connection & schema utils
 │  ├─ chunker.py            # Text splitter
 │  ├─ ingest.py             # Ingestion CLI
-│  ├─ retrieval.py          # Vector search helpers (in progress)
+│  ├─ retrieval.py          # Vector search helpers
 │  └─ requirements.txt
 ├─ docker/
 │  └─ docker-compose.yml    # Postgres + pgvector service
@@ -48,20 +48,6 @@ The RAG model broadly has 3 steps:
 ## Environment variables
 
 Create backend/.env from backend/.env.example
-
-| Key                   | Example                  | Notes                                   |
-| --------------------  | ------------------------ | --------------------------------------- |
-| `PG_HOST`             | `localhost`              | Postgres host (or compose service name) |
-| `PG_PORT`             | `5432`                   | Postgres port                           |
-| `PG_DATABASE`         | `ragdb`                  | Database name                           |
-| `PG_USER`             | `postgres`               | Database user                           |
-| `PG_PASSWORD`         | `postgres`               | Database password                       |
-| `EMBED_MODEL`         | `text-embedding-3-small` | Must match `vector(N)` dim              |
-| `CHUNK_SIZE_TOKENS`   | `350`                    | Typical 200-800                         |
-| `CHUNK_OVERLAP_TOKENS`| `40`                     | ~10–20% of size                         |
-| `TOP_K`               | `5`                      | chunks to retrieve per query            |
-| `MIN_COSINE_SIM`      | `0.75`                   | Similarity threshold                    |
-| `BATCH_SIZE`          | `64`                     | Batch size for ingestion calls          |
 
 Keep .env out of git; commit only .env.example.
 
@@ -144,19 +130,23 @@ python -c "import db; db.init_schema()"
 
 ```bash
 cd backend
-python ingest.py --path ../sample/your-file.pdf --doc-title "Your File"
+python -m backend.ingest.ingest --pdf_path ../sample/file_sample.pdf --doc-title "Sample file"
 ```
 
-![Ingestion success](helper_images/ingestion.png)
+![Ingestion](helper_images/ingestion.png)
+
+## 6) Retrieve chunks similar to query text
+
+```bash
+python -m backend.retrieve.retrieve --query "test" --k 5
+```
+
+![Retrieval](helper_images/retrieval.png)
 
 # Usage tips
 
-1) Keep chunk size 600–1200 chars; overlap 10–20% is typical.
+1) Keep chunk size 200-800 chars; overlap 10–20% is typical.
 2) Match vector(N) to your embedding dimensions.
 3) Add an HNSW index after loading some data: 
-CREATE INDEX ... USING HNSW ...;
-ANALYZE chunks;
-
-# Security
-
-1) Never commit secrets; use .env.example.
+    CREATE INDEX ... USING HNSW ...;
+    ANALYZE chunks;
