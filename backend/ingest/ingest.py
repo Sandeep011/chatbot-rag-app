@@ -51,7 +51,6 @@ def main():
 
     logger.info("Connecting to Postgres")
     conn = get_conn()
-    # conn.autocommit = False
 
     try:
         document_id = upsert_document(conn, title=title, source_path=str(pdf_path), file_checksum=checksum)
@@ -63,18 +62,18 @@ def main():
         if not pages:
             logger.warning("No pages found in PDF")
         for page_num, page_text in tqdm(pages, desc="Pages"):
-            if not page_text.strip():
+            if not page_text.strip() or len(page_text) < 30:
                 continue
             
             chunks = page_to_chunks(page_text)
 
             if not chunks:
                 continue
-            
+
             to_embed = []
             for c in chunks:
-                to_embed.append("passage: {c}")
-            embeddings= model.encode(to_embed, normalize_embeddings=True)
+                to_embed.append(f"passage: {c}")
+            embeddings = model.encode(to_embed, normalize_embeddings=True)
 
             chunk_emb = zip(chunks, embeddings)
             for chunk_text, emb in  chunk_emb:
