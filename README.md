@@ -4,7 +4,7 @@ This "Chat with your Docs" project lets you ask questions about your documents a
 
 This system is LLM agnostic and embedding model agnostic i.e., one can plug in OpenAI, local models, or other providers as needed, provided the embedding dimensions match the database schema. It is container-friendly, and designed for repeatable ingestion so that the knowledge base stays fresh as documents change. Chunking strategy (size/overlap), metadata, and indexing can be tuned for different document types, from long technical specs and handbooks to contracts, and research papers.
 
-The model is under development. Ingestion is available for use and experimentation. Asking questions (retrieve) is under progress.
+The model is under development. Ingestion is available for use and experimentation. Retrieval is compelte, Asking questions through is under progress.
 
 ## Features
 
