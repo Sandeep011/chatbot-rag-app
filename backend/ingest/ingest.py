@@ -61,6 +61,7 @@ def main():
         pages = list(read_pdf_pages(pdf_path))
         if not pages:
             logger.warning("No pages found in PDF")
+            raise
         for page_num, page_text in tqdm(pages, desc="Pages"):
             if not page_text.strip() or len(page_text) < 30:
                 continue
