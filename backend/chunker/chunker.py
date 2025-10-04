@@ -43,8 +43,8 @@ def text_to_chunks(text: str, max_chars: int = 900, overlap: int = 150):
         return []
     
     if text_size <= max_chars:
-        return text
-    
+        return [text]
+
     start = 0
     chunks = []
     while start < text_size:
