@@ -45,7 +45,7 @@ def run_search(conn, query_vec, document_id, min_score, top_k = 8):
         c.chunk_text,
         (1 - (c.embedding <=> q.v)) AS score, 
             ROW_NUMBER() OVER (
-                PARTITION BY d.id, c.chunk_text
+                PARTITION BY d.id, c.chunk_index, c.page_number
                 ORDER BY (1 - (c.embedding <=> q.v)) DESC
             ) AS rn
         FROM chunks c
@@ -65,7 +65,7 @@ def run_search(conn, query_vec, document_id, min_score, top_k = 8):
     
     where.append(" ranked.rn = 1")
     if where:
-        query.append("WHERE" + "AND ".join(where))
+        query.append("WHERE" + " AND ".join(where))
     
     logger.info("order and limit on query")
     query.append("ORDER BY ranked.score DESC")
@@ -169,8 +169,8 @@ def run_diagnostics(conn, qvec):
 def main():
     parser = argparse.ArgumentParser(description="Query pgvector for similar shunks")
     parser.add_argument("--query", required=True, help="Question (search text)")
-    parser.add_argument("--k", type=int, default=8, help="top-k results")
-    parser.add_argument("--min_score", type=float, default=0.0, help="keep results above this similarity score")
+    parser.add_argument("--k", type=int, default=os.getenv("TOP_K"), help="top-k results")
+    parser.add_argument("--min_score", type=float, default=os.getenv("MIN_COSINE_SIM"), help="keep results above this similarity score")
     parser.add_argument("--doc_id", help="Limit to a specific  document UUID")
     parser.add_argument("--chars", type=int, default=220, help="previeww characters to display")
     parser.add_argument("--debug", action="store_true", help="print raw cosine distancce as well")
@@ -180,7 +180,6 @@ def main():
     qvec = embed_query(model, args.query)
 
     conn = get_conn()
-    register_vector(conn)
 
     if args.debug:
         run_diagnostics(conn, qvec)
