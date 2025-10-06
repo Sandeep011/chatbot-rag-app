@@ -144,8 +144,10 @@ b) create a helper, say init_schema() with above queries, in db.py, then
 python -c "import db; db.init_schema()"
 ```
 
+Documents table schema
 ![Documents table schema](helper_images/documents_schema.png)
 
+Chunks table schema
 ![Chunks table schema](helper_images/chunks_schema.png)
 
 ## 5) Ingest sample file
@@ -155,6 +157,7 @@ cd backend
 python -m backend.ingest.ingest --pdf_path ../sample/file_sample.pdf --doc-title "Sample file"
 ```
 
+Ingest pdf
 ![Ingestion](helper_images/ingestion.png)
 
 ## 6) Retrieve chunks similar to query text
@@ -163,6 +166,7 @@ python -m backend.ingest.ingest --pdf_path ../sample/file_sample.pdf --doc-title
 python -m backend.retrieve.retrieve --query "test" --k 5
 ```
 
+Retrieved chunks
 ![Retrieval](helper_images/retrieval.png)
 
 ## 7) Running end-to-end via API
@@ -181,8 +185,13 @@ uvicorn backend.app:app
 curl -s -X POST http://127.0.0.1:8000/ingest -F "file=@sample/<file_name>.pdf" -f "title=<title for the file>"
 ```
 
+Ingest API
 ![Ingest API](helper_images/ingest_api.png)
+
+document DB updated from ingestion
 ![document DB updated from ingestion](helper_images/document_db_updated_from_ingest_api.png)
+
+chunks DB updated from ingestion
 ![chunks DB updated from ingestion](helper_images/chunks_db_updated_from_ingest_api.png)
 
 ### Search
@@ -191,7 +200,10 @@ curl -s -X POST http://127.0.0.1:8000/ingest -F "file=@sample/<file_name>.pdf" -
  curl -s -X POST http://127.0.0.1:8000/search -H "Content-Type: application/json" -d '{"query":"<query>", "top_k":5, "min_score":0.0}'
 ```
 
+Search API
 ![Search API](helper_images/search_api.png)
+
+Result chunks from search
 ![Result chunks from search](helper_images/result_chunks_from_search_api.png)
 
 ## 8) Next steps
