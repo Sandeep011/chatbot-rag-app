@@ -11,6 +11,8 @@ from pypdf import PdfReader
 # Local imports
 from backend.db import get_conn, upsert_document, delete_and_insert_chunks
 from backend.chunker import page_to_chunks
+from  backend.embeddings import get_model, embed_passage
+
 
 logger.add("logs/ingest.log", rotation="1 MB", enqueue=True)
 
@@ -74,7 +76,7 @@ def main():
             to_embed = []
             for c in chunks:
                 to_embed.append(f"passage: {c}")
-            embeddings = model.encode(to_embed, normalize_embeddings=True)
+            embeddings = embed_passage(to_embed)
 
             chunk_emb = zip(chunks, embeddings)
             for chunk_text, emb in  chunk_emb:
