@@ -11,24 +11,22 @@ from pgvector.psycopg2 import register_vector
 
 # Local imports
 from backend.db import get_conn
+from backend.embeddings import embed_query, get_model
+
 
 load_dotenv()
 
-
-def load_model() -> SentenceTransformer:
-    model_name = os.getenv("EMBED_MODEL","intfloat/e5-small-v2")
-    logger.info(f"Loading embedding model: {model_name}")
-    model = SentenceTransformer(model_name)
-    return model
-
-
-def embed_query(model, query):
-    vector = model.encode([f"query: {query}"], normalize_embeddings=True)
-    vector_list = vector[0].tolist()
-    return vector_list
-
-
 def run_search(conn, query_vec, document_id, min_score, top_k = 8):
+    try:
+        query_vec = [float(x) for x in (query_vec.tolist() if hasattr(query_vec, "tolist") else query_vec)]
+    except TypeError:
+        raise RuntimeError(f"query_vec must be a sequence of floats, got: {type(query_vec)}")
+
+    # sanity checks
+    assert isinstance(query_vec, list), f"type={type(query_vec)}"
+    assert len(query_vec) > 3, f"len={len(query_vec)}"
+    assert isinstance(query_vec[0], (float, int)), f"elem0={type(query_vec[0])}"
+
     params = []
     query = []
 
@@ -65,7 +63,7 @@ def run_search(conn, query_vec, document_id, min_score, top_k = 8):
     
     where.append(" ranked.rn = 1")
     if where:
-        query.append("WHERE" + " AND ".join(where))
+        query.append(" WHERE " + " AND ".join(where))
     
     logger.info("order and limit on query")
     query.append("ORDER BY ranked.score DESC")
@@ -74,11 +72,13 @@ def run_search(conn, query_vec, document_id, min_score, top_k = 8):
 
     full_query = " ".join(query)
 
-    logger.info("connecting to db")
-    
+    logger.info("connecting to db")    
     rows = []
+
     with conn.cursor() as cur:
-        cur.execute(full_query, params)
+        # dbg_sql = cur.mogrify(full_query, tuple(params))
+        # logger.debug("SQL => %s", dbg_sql.decode("utf-8") if isinstance(dbg_sql, bytes) else str(dbg_sql))
+        cur.execute(full_query, tuple(params))
         logger.info("query execution finished")
         cols = [c.name for c in cur.description]
 
@@ -165,7 +165,6 @@ def run_diagnostics(conn, qvec):
             logger.info(f"embedding text preview (first 100 chars): {sample_text[0]}")
 
 
-
 def main():
     parser = argparse.ArgumentParser(description="Query pgvector for similar shunks")
     parser.add_argument("--query", required=True, help="Question (search text)")
@@ -177,7 +176,7 @@ def main():
     args = parser.parse_args()
 
     model = load_model()
-    qvec = embed_query(model, args.query)
+    qvec = embed_query(args.query)
 
     conn = get_conn()
 
