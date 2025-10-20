@@ -1,229 +1,235 @@
-# Chatbot RAG App
+# Chat with Docs — Retrieval-Augmented Generation (RAG) Chatbot
 
-Retrieval-Augmented Generation (RAG) backend built with FastAPI, PostgreSQL + pgvector, and SentenceTransformer embeddings.
+An end-to-end backend system demonstrating how to **ground LLM queries on custom documents using semantic retrieval**.  
+Built with **FastAPI**, **PostgreSQL + pgvector**, and **Docker**, this project highlights scalable API design, modular data pipelines, and containerized deployment.
 
-This "Chat with your Docs" project lets you ask questions about your documents and get grounded answers with citations. It ingests files, splits them into manageable chunks, creates dense vector embeddings, and stores them in Postgres with the pgvector extension. At query time, it embeds the question, retrieves relevant passages via vector search, and composes an answer that quotes and links back to the sources.
+The system is both **LLM-agnostic** and **embedding-model-agnostic** — you can plug in OpenAI, local models, or other providers as long as the embedding dimensions align with the database schema.  
+It’s fully containerized and supports **repeatable ingestion**, ensuring the knowledge base stays current as documents evolve.  
+Chunking parameters (size, overlap), metadata, and indexing are configurable for diverse document types — from technical manuals and contracts to research papers and handbooks.
 
-This system is LLM agnostic and embedding model agnostic i.e., one can plug in OpenAI, local models, or other providers as needed, provided the embedding dimensions match the database schema. It is container-friendly, and designed for repeatable ingestion so that the knowledge base stays fresh as documents change. Chunking strategy (size/overlap), metadata, and indexing can be tuned for different document types, from long technical specs and handbooks to contracts, and research papers.
+---
 
-# Overview
+## User Flow
 
-This project implements the backend for a document-aware chatbot using semantic search over embedded PDF chunks. 
+1. Upload a PDF file through the `/ingest` API.  
+2. The system splits it into text chunks, generates embeddings using `intfloat/e5-small-v2`, and stores them in PostgreSQL (pgvector).  
+3. Query through `/search` with any question.  
+4. The API retrieves top-k relevant chunks ranked by cosine similarity.
 
-It provides REST APIs for:
-1) Document ingestion (/ingest) – extract text, chunk pages, generate embeddings, and store them in Postgres/pgvector.
-2) Semantic retrieval (/search) – query relevant chunks using cosine similarity with SentenceTransformer embeddings.
+Result → Contextual document retrieval ready for downstream LLM or chatbot integration.
 
-Built with modular components:
-1) FastAPI – API interface
-2) pgvector + psycopg2 – vector storage and search
-3) SentenceTransformer – embedding generation
-4) Loguru – structured logging
+---
+
+## Architecture
+
+The system runs locally via Docker Compose with two services:
+
+| Service      | Description |
+|--------------|-------------|
+| **postgres** | PostgreSQL 15 with `pgvector` extension enabled |
+| **backend**  | FastAPI app exposing ingestion, search, and health endpoints |
+
+**Data Flow:**
+`PDF → Chunker → Embedding Model → pgvector DB → Query Retrieval via FastAPI`
+
+---
 
 ## Features
 
-1) PDF/text ingestion with deterministic chunking
-2) Embeddings stored in Postgres via pgvector
-3) Dockerized local stack
-4) kNN retrieval with metadata filtering
-5) Simple API for asking questions (coming soon)
+- **Document Ingestion** – Upload and embed documents into pgvector
+- **Semantic Search** – Retrieve top-k contextually similar chunks
+- **Health Endpoint** – Validates DB connectivity and uptime
+- **Containerized Setup** – Reproducible build using Docker Compose
+- **Extensible Design** – Modular components for easy LLM integration
+
+---
+
+## Engineering Highlights
+
+- Implemented modular ingestion and retrieval pipelines using FastAPI.
+- Optimized vector search with `pgvector` cosine similarity for low-latency retrieval.
+- Containerized backend and database for isolated, reproducible development.
+- Structured code for future `/answer` LLM route integration.
+- Added logging, environment-driven configuration, and health monitoring endpoints.
+
+---
 
 ## Repo structure
 
 ```bash
-backend/
-├── app/              # FastAPI application (main entry point)
-│   ├── app.py        # API endpoints: /ingest, /search, /health
-│   └── __init__.py
-├── db/               # Postgres + pgvector helpers
-│   ├── db.py         # get_conn, upsert_document, delete_and_insert_chunks
-│   └── __init__.py
-├── chunker/          # PDF text processing utilities
-│   ├── chunker.py    # clean_text, text_to_chunks, page_to_chunks
-│   └── __init__.py
-├── embeddings/       # Embedding model loading & inference
-│   ├── embeddings.py # get_model, embed_passage, embed_query
-│   └── __init__.py
-├── retrieve/         # Semantic search engine
-│   ├── retrieve.py   # run_search, run_diagnostics
-│   └── __init__.py
-└── ingest/           # ingestion script for PDFs
-    └── ingest.py
+chatbot-rag-app/
+├─ backend/
+│  ├─ .env.example
+│  ├─ Dockerfile
+│  ├─ requirements.txt
+│  ├─ requirements.lock.txt
+│  ├─ app/
+│  │  └─ app.py                 # FastAPI entrypoint
+│  ├─ db/
+│  │  ├─ db.py                  # psycopg2 connection + helpers
+│  │  └─ test_db.py
+│  ├─ chunker/
+│  │  └─ chunker.py             # PDF/text chunking
+│  ├─ embeddings/
+│  │  └─ embeddings.py          # Model loader: intfloat/e5-small-v2
+│  ├─ ingest/
+│  │  └─ ingest.py              # Ingestion pipeline (store docs/chunks)
+│  └─ retrieve/
+│     └─ retrieve.py            # Semantic search / similarity logic
+├─ docker/
+│  ├─ docker-compose.yml
+│  └─ init/
+│     ├─ init.sql               # schema bootstrap
+│     └─ once-suser.sql         # one-time user/role setup
+├─ helper_images/               # screenshots/diagrams for README
+│  └─ *.png
+├─ sample/
+│  └─ *.pdf
+├─ .gitignore
+└─ README.md
 ```
 
-## Architecture
-
-The RAG model broadly has 3 steps:
-1) Ingestion: parse -> chunk -> embed -> write to Postgres
-2) Retrieve: query -> vector search (pgvector) -> top-k chunks
-3) Generate: LLM answer conditioned on retrieved chunks (with citations)
-
-PDF → Chunker → Embeddings → pgvector DB → Semantic Search → JSON Respons
+---
 
 ## Tech stack
 
-1) Python 3.10+
-2) Postgres 15+ with pgvector 0.7+ (HNSW requires pgvector ≥ 0.7)
-3) Any embedding model (e5-small-v2, text-embedding-3-small, bge, etc.)
-4) FastAPI + Uvicorn (future version)
+|       Category       |                  Tools                |
+|----------------------|---------------------------------------|
+|     **Language**     |               Python 3.11             |
+|     **Framework**    |                 FastAPI               |
+|     **Database**     |          PostgreSQL + pgvector        |
+|  **Embedding Model** | `intfloat/e5-small-v2` (Hugging Face) |
+| **Containerization** |                 Docker                |
 
-## Environment variables
+---
 
-Create backend/.env from backend/.env.example
+## Quickstart
 
-Keep .env out of git; commit only .env.example.
+These steps assume Docker(and Docker compose) are installed and you have a `.env` file for credentials.
 
-
-# Quickstart
-
-## 1) Start the database (docker)
-
-```bash
-# From repo root
-docker compose -f docker/docker-compose.yml up -d
-
-# Confirm Postgres is up
-docker ps
-```
-
-![Docer service running](helper_images/docker.png)
-
-## 2) Create db and enable pgvector
+### 1) Clone this repository
 
 ```bash
-# Shell into the container (psql)
-docker exec -it pgvector-db psql -U postgres
+git clone https://github.com/Sandeep011/chatbot-rag-app.git
+cd chatbot-rag-app
 ```
 
-then run queries to create db and extension 
+### 2) Configure environment variables
 
-```sql
-CREATE DATABASE ragdb;
-\c ragdb
-CREATE EXTENSION IF NOT EXISTS vector;
-```
-
-## 3) Install backend dependencies
+Create a `.env` file in the repo root:
 
 ```bash
-# having created the file structure as mentioned above
-cd backend
-python -m venv .venv && source .venv/bin/activate   # create a virtual environment
-pip install -r requirements.txt
-cp .env.example .env
+PG_HOST=postgres
+PG_PORT=5432
+PG_USER=postgres
+PG_PASSWORD=<your_password>
+PG_DATABASE=chatbot
 ```
 
-## 4) Initialize schema
+`.env` should be git-ignored. to prevent sharing secrets.
 
-Either a or b
-
-a) run the queries in psql. run in psql connected to ragdb (example schema)
-
-```sql
-CREATE TABLE IF NOT EXISTS documents (
-  id UUID PRIMARY KEY,
-  path TEXT,
-  title TEXT,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS chunks (
-  id UUID PRIMARY KEY,
-  document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
-  ordinal INT,
-  text TEXT,
-  embedding vector(1536),   -- set to your model’s dimensions
-  meta JSONB DEFAULT '{}'::jsonb
-);
-CREATE INDEX IF NOT EXISTS idx_chunks_embedding ON chunks USING hnsw (embedding vector_cosine_ops);
-```
-
-b) create a helper, say init_schema() with above queries, in db.py, then
+### 3) Build Docker images (First time only)
 
 ```bash
-python -c "import db; db.init_schema()"
+docker compose -f docker/docker-compose.yml build
 ```
 
-Documents table schema
+This builds:
+- chatbot-backend (FastAPI app)
 
-![Documents table schema](helper_images/documents_schema.png)
+![Docker builds backend image](helper_images/docker_build_backend.png)
 
-Chunks table schema
 
-![Chunks table schema](helper_images/chunks_schema.png)
+For chatbot-db (PostgreSQL + pgvector), we use an image provided by docker.
+We can reference and directly launch it.
 
-## 5) Ingest sample file
+### 4) Launch the app
 
 ```bash
-cd backend
-python -m backend.ingest.ingest --pdf_path ../sample/file_sample.pdf --doc-title "Sample file"
+docker compose -f docker/docker-compose.yml up
 ```
+This starts both containers, sets networking, applies DB init (if mounted).
 
-Ingest pdf
+![Launch  the app using docker images](helper_images/docker_launch_app.png)
 
-![Ingestion](helper_images/ingestion.png)
-
-## 6) Retrieve chunks similar to query text
+### 5) Verify health
 
 ```bash
-python -m backend.retrieve.retrieve --query "test" --k 5
+curl -s http://127.0.0.1:8000/health | jq
 ```
 
-Retrieved chunks
+This should return:
+```json
+{"status":"OK","model":"intfloat/e5-small-v2"}
+```
 
-![Retrieval](helper_images/retrieval.png)
+![Verify app health](helper_images/verify_health.png)
 
-## 7) Running end-to-end via API
-
-### Start the application
+### 6) Ingest a document
 
 ```bash
-uvicorn backend.app:app
+curl -X POST "http://127.0.0.1:8000/ingest" \
+  -F "file=@sample/sample.pdf" \
+  -F "title=Sample PDF"
 ```
+This chunks the PDF, generates embeddings (e5-small-v2), and stores vectors in Postgres (pgvector).
 
-![Start the application](helper_images/start_the_application.png)
+![Ingest a PDF](helper_images/ingest_pdf.png)
 
-### Ingest
+![Documents table](helper_images/documents_db.png)
+
+![Count of Chunks](helper_images/chunks_db.png)
+
+### 7) Run a search query
 
 ```bash
-curl -s -X POST http://127.0.0.1:8000/ingest -F "file=@sample/<file_name>.pdf" -f "title=<title for the file>"
+curl -X POST "http://127.0.0.1:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"your query"}'
 ```
 
-Ingest API
+Sample response:
 
-![Ingest API](helper_images/ingest_api.png)
+```json
+{
+  "query": "system design",
+  "results": [
+    {"chunk":"System deisgn is the architecture of services and...","score":0.88}
+  ]
+}
+```
 
-document DB updated from ingestion
+![Search query response](helper_images/search_query.png)
 
-![document DB updated from ingestion](helper_images/document_db_updated_from_ingest_api.png)
-
-chunks DB updated from ingestion
-
-![chunks DB updated from ingestion](helper_images/chunks_db_updated_from_ingest_api.png)
-
-### Search
+### 8) Stop the app
 
 ```bash
- curl -s -X POST http://127.0.0.1:8000/search -H "Content-Type: application/json" -d '{"query":"<query>", "top_k":5, "min_score":0.0}'
+docker compose -f docker/docker-compose.yml down
 ```
 
-Search API
+![Shutting down app using docker](helper_images/docker_stop_app.png)
 
-![Search API](helper_images/search_api.png)
+## Current Status
 
-Result chunks from search
+- Dockerized backend + pgvector DB
+- ingest, /search, /health working
+- .env excluded from git
+- Local run validated end-to-end
 
-![Result chunks from search](helper_images/result_chunks_from_search_api.png)
+## Planned Enhancements
 
-## 8) Next steps
+- **Deployment:** Azure Container Apps + Azure PostgreSQL Flexible Server
+- **Scalability:** Async I/O for ingestion/search paths
+- **Observability:** Metrics + structured logs
+- **LLM Layer:** /answer endpoint for contextual answers
+- **UI:** Minimal textbox front end for live demo
 
-Add a response generation layer using an LLM API. This will allow asking questions (instead of querying words) and getting answers (instead of getting similar chunks).
+## Usage Tips
+- **Startup:** Always run `docker compose up` from the repo root.
+- **Ingestion:** Prefer small PDFs (<10 MB) for faster chunking.
+- **DB Persistence:** Data is stored in the `chatbot` database; use `docker exec -it postgres psql` to inspect.
+- **Reset:** Run `docker compose down -v` to clear data volumes completely. THIS WIPES THE DATABASE AND DELETES THE IMAGES.
 
-
-# Usage tips
-
-1) Keep chunk size 200-800 chars; overlap 10–20% is typical.
-2) Match vector(N) to your embedding dimensions.
-3) Add an HNSW index after loading some data: 
-    CREATE INDEX ... USING HNSW ...;
-    ANALYZE chunks;
+### Common Pitfalls
+- Forgetting to rebuild after changing dependencies → `docker compose build --no-cache`
+- Missing `.env` values cause `/health` to return 500
