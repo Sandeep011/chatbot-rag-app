@@ -13,13 +13,17 @@ def get_conn():
     form a connection between python and postgres.
     One connection per execution.
     """
-    conn = psycopg2.connect(
-        host=os.getenv("PG_HOST"),
-        port=int(os.getenv("PG_PORT")),
-        user=os.getenv("PG_USER"),
-        password=os.getenv("PG_PASSWORD"),
-        dbname=os.getenv("PG_DATABASE"),
-    )
+    url = os.getenv("DATABASE_URL")
+    if url:
+        conn = psycopg2.connect(url)
+    else:
+        conn = psycopg2.connect(
+            host=os.getenv("PG_HOST", "postgres"),
+            port=int(os.getenv("PG_PORT", "5432")),
+            user=os.getenv("PG_USER", "postgres"),
+            password=os.getenv("PG_PASSWORD"),
+            dbname=os.getenv("PG_DATABASE"),
+        )
 
     register_vector(conn) # allows us to pass python lists which will be interpreted as vector columns
     return conn
