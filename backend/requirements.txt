@@ -1,9 +1,16 @@
-# Core database + ORM
+# Core database
 SQLAlchemy>=2.0
 psycopg2-binary>=2.9       # Postgres driver
 
-# Vector DB / ANN
+# Vector DB
 pgvector>=0.2.5            # SQLAlchemy extension for pgvector
+
+# Web API
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+pydantic>=2,<3
+orjson>=3.10
 
 # AI / embeddings
 sentence-transformers>=2.2 # Hugging Face wrapper for SBERT models
@@ -11,22 +18,18 @@ sentence-transformers>=2.2 # Hugging Face wrapper for SBERT models
 # Parsing
 pypdf>=4.0                 # Lightweight PDF parser
 beautifulsoup4>=4.12       # For HTML/URL parsing
-unstructured               # fallback for messy docs
 
-# Config & logging
-python-dotenv>=1.0
+# Migrations
+alembic>=1.13
+
+# Observability
 loguru>=0.7
+prometheus-fastapi-instrumentator>=6.1
 
-# Web framework
-fastapi>=0.110
-uvicorn[standard]>=0.29
+# Config & utils
+python-dotenv>=1.0
+httpx>=0.27
 
-# Testing
+# Dev/Testing
 pytest>=8.0
-
-# Progress bars (optional, cosmetic)
 tqdm>=4.66
-
-# others
-python-multipart>=0.0.9
-pydantic>=2,<3
