@@ -1,0 +1,39 @@
+# VCS & misc
+.git
+.gitignore
+.DS_Store
+
+# Python byproducts (any depth)
+**/__pycache__/**
+**/*.py[cod]
+**/.pytest_cache/**
+**/.mypy_cache/**
+**/.pytype/**
+**/.coverage
+**/htmlcov/**
+
+# Virtual envs (any name, any depth)
+**/.venv/**
+**/venv/**
+**/env/**
+
+# Logs & notebooks
+**/*.log
+**/*.ipynb
+
+# Large caches & models
+**/.cache/**
+**/.huggingface/**
+**/transformers_cache/**
+**/sentence_transformers/**
+**/models/**
+
+# Big data files
+**/*.parquet
+**/*.csv
+**/*.tsv
+
+# Build artifacts
+build/
+dist/
+**/*.egg-info/
