@@ -14,6 +14,7 @@ orjson>=3.10
 
 # AI / embeddings
 sentence-transformers>=2.2 # Hugging Face wrapper for SBERT models
+torch==2.3.1
 
 # Parsing
 pypdf>=4.0                 # Lightweight PDF parser
