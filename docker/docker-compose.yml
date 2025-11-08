@@ -2,7 +2,6 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: pgvector-db
-    # bind only to localhost so it's not reachable from outside
     ports: ["127.0.0.1:5432:5432"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -23,8 +22,8 @@ services:
       - ./init:/docker-entrypoint-initdb.d:ro
   backend:
     build:
-      context: ..
-      dockerfile: backend/Dockerfile
+      context: ../backend
+      dockerfile: Dockerfile
     image: rag-backend:local
     container_name: rag-backend
     depends_on:
