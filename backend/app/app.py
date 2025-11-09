@@ -3,7 +3,8 @@
 import os
 from io import BytesIO
 import hashlib
-from typing import Optional, List, Dict, Any
+import re
+from typing import Optional, List, Dict, Any, Literal
 
 from fastapi import FastAPI, UploadFile, Form, File, HTTPException
 # from fastapi.response import JSONResponse
@@ -36,6 +37,27 @@ class SearchRequest(BaseModel):
     preview_chars: int = Field(220, ge=0, le=5000)
     debug: bool = False
 
+class AnswerRequest(BaseModel):
+    query: str = Field(..., description="Natural language query")
+    top_k: int = Field(int(os.getenv("TOP_K", "8")), ge=1, le=200)
+    min_score: float = Field(float(os.getenv("MIN_COSINE_SIM", "0.0")), ge=0.0, le=1.0)
+    doc_id: Optional[str] = Field(None, description="Limit to a document UUID")
+    preview_chars: int = Field(220, ge=0, le=5000)
+    debug: bool = False
+    mode: Literal["extractive"] = "extractive"
+
+class Citation(BaseModel):
+    document_id: str
+    title: Optional[str] = None
+    page_number: Optional[int] = None
+    chunk_index: Optional[int] = None
+    score: float
+    snippet: Optional[str] = None
+
+class UsedModel(BaseModel):
+    embedding: str
+    llm: Optional[str] = None  # always None in extractive mode
+
 class SearchHit(BaseModel):
     document_id: str
     title: Optional[str] = None
@@ -47,12 +69,46 @@ class SearchHit(BaseModel):
 class SearchResponse(BaseModel):
     hits: List[SearchHit]
     used_model: str
-    timings_ms: Dict[str, Any] = Field(deafult_factory=dict)
+    timings_ms: Dict[str, Any] = Field(default_factory=dict)
 
 class IngestResponse(BaseModel):
     document_id: str
     chunks_inserted: int
     title: Optional[str] = None
+
+class AnswerResponse(BaseModel):
+    answer: str
+    answer_bullets: List[str] = []
+    citations: List[Citation] = []
+    used_model: UsedModel
+    timings_ms: Dict[str, Any] = Field(default_factory=dict)
+    debug: Dict[str, Any] = Field(default_factory=dict)
+
+
+_sentence_split = re.compile(r'(?<=[.!?])\s+')
+
+def _split_sentences(text: str, max_len: int = 300) -> List[str]:
+    sents = []
+    for s in _sentence_split.split((text or "").strip()):
+        s = " ".join(s.split())
+        if s:
+            sents.append(s[:max_len])
+    return sents
+
+def _make_citations(rows: List[Dict[str, Any]], preview_chars: int) -> List[Citation]:
+    cites: List[Citation] = []
+    for r in rows:
+        snippet = (r.get("chunk_text") or "")[:preview_chars].strip()
+        cites.append(Citation(
+            document_id=str(r.get("document_id")),
+            title=r.get("title"),
+            page_number=r.get("page_number"),
+            chunk_index=r.get("chunk_index"),
+            score=float(r.get("score")),
+            snippet=snippet,
+        ))
+    return cites
+
 
 # -----------------Startup-----------------
 
@@ -78,11 +134,12 @@ def startup():
             conn.close()
 
 
-# -----------------Startup-----------------
+# -----------------Routes-----------------
 
 @app.get("/health")
 def health():
     return {"status": "OK", "model": os.getenv("EMBED_MODEL", "intfloat/e5-small-v2")}
+
 
 @app.post("/ingest", response_model=IngestResponse)
 def ingest_pdf(file: UploadFile = File(..., description="PDF file"), 
@@ -166,6 +223,7 @@ def ingest_pdf(file: UploadFile = File(..., description="PDF file"),
 
     return IngestResponse(document_id=str(document_id), chunks_inserted=len(rows), title=file_title)
 
+
 @app.post("/search", response_model=SearchResponse)
 def search(req: SearchRequest):
     if not req.query.strip():
@@ -219,4 +277,93 @@ def search(req: SearchRequest):
         hits=hits,
         used_model=os.getenv("EMBED_MODEL", "intfloat/e5-small-v2"),
         timings_ms={},
+    )
+
+
+@app.post("/answer", response_model=AnswerResponse)
+def answer(req: AnswerRequest):
+    if not req.query.strip():
+        raise HTTPException(status_code=400, detail="Query cannot be empty.")
+
+    # 1) Embed query
+    try:
+        qvec = embed_query(req.query)
+        logger.debug(f"qvec type={type(qvec)}")
+    except Exception as e:
+        logger.exception("Query embedding failed")
+        raise HTTPException(status_code=500, detail=f"Embedding error: {e}")
+
+    # 2) Retrieve hits
+    conn = None
+    rows: List[Dict[str, Any]] = []
+    try:
+        conn = get_conn()
+        rows = run_search(
+            conn=conn,
+            query_vec=qvec,
+            document_id=req.doc_id,
+            min_score=req.min_score,
+            top_k=req.top_k,
+        )
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.exception("Answer search failed")
+        raise HTTPException(status_code=500, detail=f"Search error: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+    if not rows:
+        return AnswerResponse(
+            answer="I couldn’t find anything relevant.",
+            answer_bullets=[],
+            citations=[],
+            used_model=UsedModel(embedding=os.getenv("EMBED_MODEL", "intfloat/e5-small-v2")),
+            timings_ms={"retrieve": 0, "generate": 0},
+        )
+
+    # 3) Extractive summarization (LLM-free)
+    #    - bias to first sentences of the top chunks
+    #    - score-weighted, with near-duplicate filtering
+    top = rows[: min(len(rows), 5)]
+
+    candidates: List[tuple] = []
+    for r in top:
+        text = r.get("chunk_text") or ""
+        sents = _split_sentences(text)
+        for idx, s in enumerate(sents[:4]):
+            pos_bonus = 1.0 if idx == 0 else 0.85 if idx == 1 else 0.7
+            weight = float(r.get("score", 0.0)) * pos_bonus
+            candidates.append((weight, s, r))
+
+    def _too_similar(a: str, b: str) -> bool:
+        wa, wb = set(a.lower().split()), set(b.lower().split())
+        if not wa or not wb:
+            return False
+        j = len(wa & wb) / len(wa | wb)
+        return j >= 0.75
+
+    selected: List[tuple] = []
+    seen: List[str] = []
+    for w, s, r in sorted(candidates, key=lambda x: x[0], reverse=True):
+        if any(_too_similar(s, t) for t in seen):
+            continue
+        seen.append(s)
+        selected.append((w, s, r))
+        if len(selected) >= 5:
+            break
+
+    bullets = [s for _, s, _ in selected][:4]
+    answer_text = " ".join(bullets)[:700] if bullets else (rows[0].get("chunk_text", "")[:700])
+
+    citations = _make_citations(rows[:6], req.preview_chars)
+
+    return AnswerResponse(
+        answer=answer_text,
+        answer_bullets=bullets,
+        citations=citations,
+        used_model=UsedModel(embedding=os.getenv("EMBED_MODEL", "intfloat/e5-small-v2")),
+        timings_ms={"retrieve": 0, "generate": 0},
+        debug={"hits": len(rows)} if req.debug else {}
     )
