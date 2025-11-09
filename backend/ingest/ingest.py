@@ -38,7 +38,6 @@ def main():
     parser = argparse.ArgumentParser(description="Ingest a single PDF into postgres+pgvector")
     parser.add_argument("--pdf_path", required=True, help="Path to the PDF file")
     parser.add_argument("--title", help="pdf file name (optional)")
-    parser.add_argument("--model", default="intfloat/e5-small-v2", help="Sentence transformer model")
     args = parser.parse_args()
 
     pdf_path = Path(args.pdf_path).resolve()
@@ -47,9 +46,6 @@ def main():
     
     title = args.title
     checksum = generate_sha256(pdf_path)
-
-    logger.info("Loading embedding model")
-    model = SentenceTransformer(args.model)
 
     logger.info("Connecting to Postgres")
     conn = get_conn()
@@ -74,9 +70,7 @@ def main():
                 continue
 
             to_embed = []
-            for c in chunks:
-                to_embed.append(f"passage: {c}")
-            embeddings = embed_passage(to_embed)
+            embeddings = embed_passage(chunks)
 
             chunk_emb = zip(chunks, embeddings)
             for chunk_text, emb in  chunk_emb:
