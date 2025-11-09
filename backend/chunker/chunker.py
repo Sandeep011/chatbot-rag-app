@@ -1,4 +1,3 @@
-# v0
 
 import re
 
