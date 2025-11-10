@@ -5,6 +5,7 @@ from io import BytesIO
 import hashlib
 import re
 from typing import Optional, List, Dict, Any, Literal
+import time
 
 from fastapi import FastAPI, UploadFile, Form, File, HTTPException
 # from fastapi.response import JSONResponse
@@ -23,6 +24,7 @@ from backend.db import get_conn, upsert_document, delete_and_insert_chunks
 from backend.chunker import page_to_chunks
 from backend.retrieve import run_search
 from backend.embeddings import get_model, embed_passage, embed_query, embedding_dim
+from  backend.services.llm import llm_answer
 
 load_dotenv()
 
@@ -323,47 +325,68 @@ def answer(req: AnswerRequest):
             timings_ms={"retrieve": 0, "generate": 0},
         )
 
-    # 3) Extractive summarization (LLM-free)
-    #    - bias to first sentences of the top chunks
-    #    - score-weighted, with near-duplicate filtering
-    top = rows[: min(len(rows), 5)]
+    # 3) Generate answer (LLM-first with safe fallback to extractive)
+    tg0 = time.time()
 
-    candidates: List[tuple] = []
-    for r in top:
-        text = r.get("chunk_text") or ""
-        sents = _split_sentences(text)
-        for idx, s in enumerate(sents[:4]):
-            pos_bonus = 1.0 if idx == 0 else 0.85 if idx == 1 else 0.7
-            weight = float(r.get("score", 0.0)) * pos_bonus
-            candidates.append((weight, s, r))
+    # Build retrieval context
+    ctx = "\n\n".join([r.get("chunk_text", "") for r in rows if r.get("chunk_text")])
 
-    def _too_similar(a: str, b: str) -> bool:
-        wa, wb = set(a.lower().split()), set(b.lower().split())
-        if not wa or not wb:
-            return False
-        j = len(wa & wb) / len(wa | wb)
-        return j >= 0.75
+    # Try Azure OpenAI via llm_answer() — returns {"answer", "answer_bullets", "_model_name"}
+    answer_obj = llm_answer(
+        question=req.query,
+        context=ctx,
+        target_json_schema={"answer": "string", "answer_bullets": ["string"]},
+    )
 
-    selected: List[tuple] = []
-    seen: List[str] = []
-    for w, s, r in sorted(candidates, key=lambda x: x[0], reverse=True):
-        if any(_too_similar(s, t) for t in seen):
-            continue
-        seen.append(s)
-        selected.append((w, s, r))
-        if len(selected) >= 5:
-            break
+    answer_text = answer_obj.get("answer") or ""
+    bullets = answer_obj.get("answer_bullets") or []
+    used_llm = answer_obj.get("_model_name")  # None if misconfigured/unreachable
 
-    bullets = [s for _, s, _ in selected][:4]
-    answer_text = " ".join(bullets)[:700] if bullets else (rows[0].get("chunk_text", "")[:700])
+    # Fallback to your existing extractive logic if LLM isn't available
+    if not used_llm:
+        top = rows[: min(len(rows), 5)]
+        candidates: List[tuple] = []
+        for r in top:
+            text = r.get("chunk_text") or ""
+            sents = _split_sentences(text)
+            for idx, s in enumerate(sents[:4]):
+                pos_bonus = 1.0 if idx == 0 else 0.85 if idx == 1 else 0.7
+                weight = float(r.get("score", 0.0)) * pos_bonus
+                candidates.append((weight, s, r))
 
+        def _too_similar(a: str, b: str) -> bool:
+            wa, wb = set(a.lower().split()), set(b.lower().split())
+            if not wa or not wb:
+                return False
+            j = len(wa & wb) / len(wa | wb)
+            return j >= 0.75
+
+        selected: List[tuple] = []
+        seen: List[str] = []
+        for w, s, r in sorted(candidates, key=lambda x: x[0], reverse=True):
+            if any(_too_similar(s, t) for t in seen):
+                continue
+            seen.append(s)
+            selected.append((w, s, r))
+            if len(selected) >= 5:
+                break
+
+        bullets = [s for _, s, _ in selected][:4]
+        answer_text = " ".join(bullets)[:700] if bullets else (rows[0].get("chunk_text", "")[:700])
+
+    generate_ms = int((time.time() - tg0) * 1000)
+
+    # Citations + response
     citations = _make_citations(rows[:6], req.preview_chars)
 
     return AnswerResponse(
         answer=answer_text,
         answer_bullets=bullets,
         citations=citations,
-        used_model=UsedModel(embedding=os.getenv("EMBED_MODEL", "intfloat/e5-small-v2")),
-        timings_ms={"retrieve": 0, "generate": 0},
-        debug={"hits": len(rows)} if req.debug else {}
+        used_model=UsedModel(
+            embedding=os.getenv("EMBED_MODEL", "intfloat/e5-small-v2"),
+            llm=used_llm,
+        ),
+        timings_ms={"retrieve": 0, "generate": generate_ms},
+        debug={"hits": len(rows)} if req.debug else {},
     )
