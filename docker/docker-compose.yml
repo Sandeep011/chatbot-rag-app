@@ -26,11 +26,12 @@ services:
       dockerfile: Dockerfile
     image: rag-backend:local
     container_name: rag-backend
+    env_file:
+      - ../backend/.env.docker
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}"
       LOG_LEVEL: "info"
     ports:
       - "8000:8000"
