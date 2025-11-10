@@ -14,12 +14,12 @@ The project demonstrates a complete pipeline—from document ingestion and embed
 
 1. **Upload a PDF** via the `/ingest` API.  
    → The file is chunked, embedded using `intfloat/e5-small-v2`, and stored in PostgreSQL with `pgvector`.  
-2. **Ask a question** through `/search` or `/answer`.
+2. **Ask a question** through `/search` or `/answer`.  
    → Relevant chunks are retrieved based on cosine similarity.  
-3. **Get answers** using Azure OpenAI (`GPT-4o-mini`) for natural-language, cited responses.
+3. **Get answers** using Azure OpenAI (`GPT-4o-mini`) for natural-language, cited responses.  
    → If the LLM is unavailable, the system gracefully falls back to extractive summarization.
 
-**Result:** Context-aware, reliable, and structured answers from your documents — locally or in the cloud.
+**Result:** Context-aware, reliable, and structured answers from your documents, locally or in the cloud.
 
 ---
 
@@ -137,7 +137,7 @@ LLM_MODEL=gpt-4o-mini
 EMBED_MODEL=intfloat/e5-small-v2
 ```
 
-1) All configuration — database, embeddings, and LLM — are now handled via environment variables for clean portability across local, Docker, and Azure environments.
+1) All configuration, database, embeddings, and LLM, are now handled via environment variables for clean portability across local, Docker, and Azure environments.
 2) `.env` should be git-ignored to prevent sharing secrets.
 
 ### 3) Run Locally Using Docker Compose
@@ -234,7 +234,7 @@ curl -fS -X POST "http://localhost:8000/answer" \
   -d '{"query":"What is system design?"}'
 ```
 
-The /answer endpoint will:
+The ```/answer``` endpoint will:
 1) Attempt LLM-based answer generation using Azure GPT-4o-mini
 2) Automatically fallback to extractive summarization if the LLM is unreachable
 3) Return structured JSON with answer, bullets, citations, and timing info
@@ -249,8 +249,8 @@ The /answer endpoint will:
 5) Async ingestion pipeline for large PDF uploads.
 6) Cloud-native logging and metrics, e.g., query latency, retrieval depth, fallback counts.
 
-**Strech goals**:
-7) Persistent conversation memory so users can ask follow-up questions.
+**Strech goals**:  
+7) Persistent conversation memory so users can ask follow-up questions.  
 8) Custom LLM routing, allowing users to switch between local summarization and Azure GPT-4o-mini on demand.
 
 
@@ -263,14 +263,14 @@ The /answer endpoint will:
 ```json
 "used_model": {"embedding": "intfloat/e5-small-v2", "llm": "gpt-4o-mini"}
 ```
-If "llm": null, the system is in fallback mode.
-6) Very large prompts can exceed token limits and trigger truncation on Azure; concise questions yield clearer results.
-7) Use ```az containerapp logs show``` to confirm live queries; the backend logs include chunk count and LLM call duration.
+If "llm": null, the system is in fallback mode.  
+6) Very large prompts can exceed token limits and trigger truncation on Azure; concise questions yield clearer results.  
+7) Use ```az containerapp logs show``` to confirm live queries; the backend logs include chunk count and LLM call duration.  
 8) If repo is public, automated Azure pulls are allowed; otherwise, use an ACR authentication step.
 
 
 ## ⚠️ Common Pitfalls
-1) Health check passes locally, fails on Azure - Missing <DATABASE_URL> or <AZURE_OPENAI_API_KEY> in container environment.
+1) Health check passes locally, fails on Azure - Missing ```DATABASE_URL``` or ```AZURE_OPENAI_API_KEY``` in container environment.
 2) Fallback triggers even when API key is valid - deployment name, endpoint mismatch or typo
 3) Docker image rebuilds are slow - Model re-download each build
 Keep ```RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('intfloat/e5-small-v2')"``` above ```COPY``` in Dockerfile.
