@@ -1,111 +1,113 @@
 # Chat with Docs — Retrieval-Augmented Generation (RAG) Chatbot
 
-An end-to-end backend system demonstrating how to **ground LLM queries on custom documents using semantic retrieval**.  
-Built with **FastAPI**, **PostgreSQL + pgvector**, and **Docker**, this project highlights scalable API design, modular data pipelines, and containerized deployment.
+Ask questions about your PDF documents and get structured, fact-grounded answers generated through retrieval-augmented generation (RAG).
 
-The system is both **LLM-agnostic** and **embedding-model-agnostic** — you can plug in OpenAI, local models, or other providers as long as the embedding dimensions align with the database schema.  
-It’s fully containerized and supports **repeatable ingestion**, ensuring the knowledge base stays current as documents evolve.  
-Chunking parameters (size, overlap), metadata, and indexing are configurable for diverse document types — from technical manuals and contracts to research papers and handbooks.
+## 🧭 Project Overview
 
----
-
-## User Flow
-
-1. Upload a PDF file through the `/ingest` API.  
-2. The system splits it into text chunks, generates embeddings using `intfloat/e5-small-v2`, and stores them in PostgreSQL (pgvector).  
-3. Query through `/search` with any question.  
-4. The API retrieves top-k relevant chunks ranked by cosine similarity.
-
-Result → Contextual document retrieval ready for downstream LLM or chatbot integration.
+Chatbot-RAG-App is a Retrieval-Augmented Generation (RAG) system that lets users query PDF documents in natural language.
+It retrieves relevant text from a vector database and generates concise, cited answers using Azure OpenAI GPT models.
+The project demonstrates a complete pipeline—from document ingestion and embedding to intelligent, context-aware response generation.
 
 ---
 
-## Architecture
+## 🔄 User Flow
 
-The system runs locally via Docker Compose with two services:
+1. **Upload a PDF** via the `/ingest` API.  
+   → The file is chunked, embedded using `intfloat/e5-small-v2`, and stored in PostgreSQL with `pgvector`.  
+2. **Ask a question** through `/search` or `/answer`.
+   → Relevant chunks are retrieved based on cosine similarity.  
+3. **Get answers** using Azure OpenAI (`GPT-4o-mini`) for natural-language, cited responses.
+   → If the LLM is unavailable, the system gracefully falls back to extractive summarization.
 
-| Service      | Description |
-|--------------|-------------|
-| **postgres** | PostgreSQL 15 with `pgvector` extension enabled |
-| **backend**  | FastAPI app exposing ingestion, search, and health endpoints |
-
-**Data Flow:**
-`PDF → Chunker → Embedding Model → pgvector DB → Query Retrieval via FastAPI`
-
----
-
-## Features
-
-- **Document Ingestion** – Upload and embed documents into pgvector
-- **Semantic Search** – Retrieve top-k contextually similar chunks
-- **Health Endpoint** – Validates DB connectivity and uptime
-- **Containerized Setup** – Reproducible build using Docker Compose
-- **Extensible Design** – Modular components for easy LLM integration
+**Result:** Context-aware, reliable, and structured answers from your documents — locally or in the cloud.
 
 ---
 
-## Engineering Highlights
+## 🧱 Architecture
 
-- Implemented modular ingestion and retrieval pipelines using FastAPI.
-- Optimized vector search with `pgvector` cosine similarity for low-latency retrieval.
-- Containerized backend and database for isolated, reproducible development.
-- Structured code for future `/answer` LLM route integration.
-- Added logging, environment-driven configuration, and health monitoring endpoints.
+**Components**
+- **FastAPI backend** (`backend/app/app.py`) exposing `/ingest`, `/search`, `/answer`, `/health`
+- **Embeddings** with SentenceTransformers Hugging Face `intfloat/e5-small-v2`
+- **Database**: PostgreSQL + `pgvector` (stores chunk embeddings)
+- **LLM layer**: Azure OpenAI (Chat Completions in JSON mode) with safe fallback
+- **PDF parsing**: `pypdf` (`PdfReader`)
+- **Containers**: Docker + Docker Compose, deployable to Azure Container Apps
+
+**Data Flow**
+1. **Ingest** → `/ingest`: Parse PDF → chunk pages → embed chunks → upsert into `documents` + `chunks` tables.
+2. **Retrieve** → `/search`: Embed query → **pgvector** cosine similarity matching → return ranked chunks.
+3. **Answer** → `/answer`: 
+   - Try **Azure OpenAI** first (structured JSON: `answer`, `answer_bullets`).
+   - If LLM not configured/unavailable → **extractive fallback** builds bullets from top chunks.
+4. **Health** → `/health`: Confirms model load & DB connectivity.
 
 ---
 
-## Repo structure
+## 📁 Repository Structure
 
 ```bash
 chatbot-rag-app/
-├─ backend/
-│  ├─ .env.example
-│  ├─ Dockerfile
-│  ├─ requirements.txt
-│  ├─ requirements.lock.txt
-│  ├─ app/
-│  │  └─ app.py                 # FastAPI entrypoint
-│  ├─ db/
-│  │  ├─ db.py                  # psycopg2 connection + helpers
-│  │  └─ test_db.py
-│  ├─ chunker/
-│  │  └─ chunker.py             # PDF/text chunking
-│  ├─ embeddings/
-│  │  └─ embeddings.py          # Model loader: intfloat/e5-small-v2
-│  ├─ ingest/
-│  │  └─ ingest.py              # Ingestion pipeline (store docs/chunks)
-│  └─ retrieve/
-│     └─ retrieve.py            # Semantic search / similarity logic
-├─ docker/
-│  ├─ docker-compose.yml
-│  └─ init/
-│     ├─ init.sql               # schema bootstrap
-│     └─ once-suser.sql         # one-time user/role setup
-├─ helper_images/               # screenshots/diagrams for README
-│  └─ *.png
-├─ sample/
-│  └─ *.pdf
-├─ .gitignore
-└─ README.md
+├── backend/
+│   ├── .dockerignore
+│   ├── .env.example                 # Sample env vars
+│   ├── Dockerfile                   # Backend image
+│   ├── requirements.txt
+│   ├── requirements.lock.txt
+│   ├── app/
+│   │   ├── app.py                   # FastAPI routes: /health, /ingest, /search, /answer
+│   │   └── __init__.py
+│   ├── chunker/
+│   │   ├── chunker.py               # PDF chunking logic
+│   │   └── __init__.py
+│   ├── db/
+│   │   ├── db.py                    # Postgres + pgvector connection/helpers
+│   │   ├── test_db.py
+│   │   └── __init__.py
+│   ├── embeddings/
+│   │   ├── embeddings.py            # e5-small-v2 embedding functions
+│   │   └── __init__.py
+│   ├── ingest/
+│   │   ├── ingest.py                # /ingest handler
+│   │   └── __init__.py
+│   ├── retrieve/
+│   │   ├── retrieve.py              # /search handler (vector similarity)
+│   │   └── __init__.py
+│   └── services/
+│       ├── llm.py                   # Azure OpenAI (LLM answer mode)
+│       └── __init__.py
+│
+├── docker/
+│   ├── docker-compose.yml           # Local stack: backend + postgres (pgvector)
+│   └── init/
+│       ├── init.sql                 # Schema + pgvector enablement
+│       └── once-suser.sql
+│
+├── helper_images/                   # Diagrams & screenshots for README
+├── sample/                          # Example PDFs (for quick tests)
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-## Tech stack
-
-|       Category       |                  Tools                |
-|----------------------|---------------------------------------|
-|     **Language**     |               Python 3.11             |
-|     **Framework**    |                 FastAPI               |
-|     **Database**     |          PostgreSQL + pgvector        |
-|  **Embedding Model** | `intfloat/e5-small-v2` (Hugging Face) |
-| **Containerization** |                 Docker                |
+## 🛠️ Tech stack
+-----------------------------------------------------------------------------------------------
+|       Category       |                                Tools                                 |
+|----------------------|----------------------------------------------------------------------|
+|     **Backend**      |                         FastAPI(Python 3.11)                         |
+|     **Database**     |                         PostgreSQL + pgvector                        |
+|    **Embeddings**    |                   Hugging Face (intfloat/e5-small-v2)                |
+|       **LLM**        |                        Azure OpenAI GPT-4o-mini                      |
+| **Containerization** |                        Docker / Docker Compose                       |
+|      **Cloud**       | Azure Container Apps + Azure Database for PostgreSQL Flexible Server |
+-----------------------------------------------------------------------------------------------
 
 ---
 
-## Quickstart
+## ⚡ Quickstart (ADDING SNAPSHOTS TODAY, NOV 10, 2025)
 
-These steps assume Docker(and Docker compose) are installed and you have a `.env` file for credentials.
+Review the requirements.txt, .env, .yml, and docker files to ensure you have the necessary credentials, parameters, and tools to perform the 
+steps that follow.
 
 ### 1) Clone this repository
 
@@ -114,122 +116,161 @@ git clone https://github.com/Sandeep011/chatbot-rag-app.git
 cd chatbot-rag-app
 ```
 
+Tip: If you’ve forked this repository for portfolio purposes, replace the URL with your forked repo.
+
 ### 2) Configure environment variables
 
 Create a `.env` file in the repo root:
 
 ```bash
-PG_HOST=postgres
-PG_PORT=5432
-PG_USER=postgres
-PG_PASSWORD=<your_password>
-PG_DATABASE=chatbot
+POSTGRES_USER=user
+POSTGRES_PASSWORD=pass
+POSTGRES_DB=ragdb
+DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+
+# Azure OpenAI settings
+AZURE_OPENAI_API_KEY=<your_azure_openai_key>
+AZURE_OPENAI_ENDPOINT=<your_azure_openai_endpoint>
+LLM_MODEL=gpt-4o-mini
+
+# Embedding model
+EMBED_MODEL=intfloat/e5-small-v2
 ```
 
-`.env` should be git-ignored. to prevent sharing secrets.
+1) All configuration — database, embeddings, and LLM — are now handled via environment variables for clean portability across local, Docker, and Azure environments.
+2) `.env` should be git-ignored to prevent sharing secrets.
 
-### 3) Build Docker images (First time only)
+### 3) Run Locally Using Docker Compose
+
+Start both FastAPI backend and Postgres (pgvector) services:
 
 ```bash
-docker compose -f docker/docker-compose.yml build
+docker compose up --build
 ```
 
-This builds:
-- chatbot-backend (FastAPI app)
+Once containers start, you should see:
 
-![Docker builds backend image](helper_images/docker_build_backend.png)
+```nginx
+Application startup complete.
+Uvicorn running on http://0.0.0.0:8000
+```
 
+This confirms:
+FastAPI app is live
+Embedding model intfloat/e5-small-v2 successfully loaded
+Database connected (with pgvector enabled)
 
-For chatbot-db (PostgreSQL + pgvector), we use an image provided by docker.
-We can reference and directly launch it.
+<!-- ![Successful Startup from docker compose](helper_images/.png) -->
 
-### 4) Launch the app
+### 4) Verify Health Check
+
+Test your setup:
 
 ```bash
-docker compose -f docker/docker-compose.yml up
-```
-This starts both containers, sets networking, applies DB init (if mounted).
-
-![Launch  the app using docker images](helper_images/docker_launch_app.png)
-
-### 5) Verify health
-
-```bash
-curl -s http://127.0.0.1:8000/health | jq
+curl -fsS http://localhost:8000/health
 ```
 
-This should return:
+Expected output:
+
 ```json
 {"status":"OK","model":"intfloat/e5-small-v2"}
 ```
 
-![Verify app health](helper_images/verify_health.png)
+<!-- ![Health checkup](helper_images/verify_health.png) -->
 
-### 6) Ingest a document
+### 5) Cloud Deployment (Azure)
 
-```bash
-curl -X POST "http://127.0.0.1:8000/ingest" \
-  -F "file=@sample/sample.pdf" \
-  -F "title=Sample PDF"
-```
-This chunks the PDF, generates embeddings (e5-small-v2), and stores vectors in Postgres (pgvector).
-
-![Ingest a PDF](helper_images/ingest_pdf.png)
-
-![Documents table](helper_images/documents_db.png)
-
-![Count of Chunks](helper_images/chunks_db.png)
-
-### 7) Run a search query
+Deploy to Azure using the prebuilt Docker image and your Azure environment setup:
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/search" \
-  -H "Content-Type: application/json" \
-  -d '{"query":"your query"}'
+# Build locally
+docker build -t <app-name>:<tag> backend/
+
+# Push to Docker Hub
+docker tag <app-name>:<tag> <docker-username>/<app-name>:<cloud-tag>
+docker push <docker-username>/<app-name>:<cloud-tag>
+
+# Update Azure Container App
+az containerapp update -g <resource-group> -n <app-name> \
+  --image "docker.io/<docker-username>/<app-name>:<cloud-tag>"
+
 ```
 
-Sample response:
+Verify cloud health:
+
+```bash
+curl -fsS https://<APP_FQDN>/health
+```
+
+Note: <APP_FQDN> is your Azure Container App FQDN
+
+Expected:
 
 ```json
-{
-  "query": "system design",
-  "results": [
-    {"chunk":"System deisgn is the architecture of services and...","score":0.88}
-  ]
-}
+{"status":"OK","model":"intfloat/e5-small-v2"}
 ```
 
-![Search query response](helper_images/search_query.png)
+This confirms your Azure Container App is live and connected to Azure PostgreSQL Flexible Server
 
-### 8) Stop the app
+<!-- ![ACA dashboard](helper_images/.png) -->
+
+### 6) Full Flow
+
+Once running, test your pipeline end-to-end:
 
 ```bash
-docker compose -f docker/docker-compose.yml down
+# Ingest a PDF
+curl -fS -X POST "http://localhost:8000/ingest" \
+  -F "file=@/path/to/file/system.pdf" -F "doc_id=test-1"
+
+# Search across ingested documents
+curl -fS -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"Tell me about system design."}'
+
+# Get LLM-generated answer (with fallback)
+curl -fS -X POST "http://localhost:8000/answer" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"What is system design?"}'
 ```
 
-![Shutting down app using docker](helper_images/docker_stop_app.png)
+The /answer endpoint will:
+1) Attempt LLM-based answer generation using Azure GPT-4o-mini
+2) Automatically fallback to extractive summarization if the LLM is unreachable
+3) Return structured JSON with answer, bullets, citations, and timing info
 
-## Current Status
 
-- Dockerized backend + pgvector DB
-- ingest, /search, /health working
-- .env excluded from git
-- Local run validated end-to-end
+## 🌱 Planned Enhancements
 
-## Planned Enhancements
+1) Front-end chat interface using a lightweight React UI.
+2) Multi-document ingestion.
+3) A lightweight /delete endpoint for document cleanup
+4) Command-line ingestion script ```python scripts/ingest.py <path>```
+5) Async ingestion pipeline for large PDF uploads.
+6) Cloud-native logging and metrics, e.g., query latency, retrieval depth, fallback counts.
 
-- **Deployment:** Azure Container Apps + Azure PostgreSQL Flexible Server
-- **Scalability:** Async I/O for ingestion/search paths
-- **Observability:** Metrics + structured logs
-- **LLM Layer:** /answer endpoint for contextual answers
-- **UI:** Minimal textbox front end for live demo
+**Strech goals**:
+7) Persistent conversation memory so users can ask follow-up questions.
+8) Custom LLM routing, allowing users to switch between local summarization and Azure GPT-4o-mini on demand.
 
-## Usage Tips
-- **Startup:** Always run `docker compose up` from the repo root.
-- **Ingestion:** Prefer small PDFs (<10 MB) for faster chunking.
-- **DB Persistence:** Data is stored in the `chatbot` database; use `docker exec -it postgres psql` to inspect.
-- **Reset:** Run `docker compose down -v` to clear data volumes completely. THIS WIPES THE DATABASE AND DELETES THE IMAGES.
 
-### Common Pitfalls
-- Forgetting to rebuild after changing dependencies → `docker compose build --no-cache`
-- Missing `.env` values cause `/health` to return 500
+## 💡 Usage Tips
+1) Model caching: Pre-download intfloat/e5-small-v2 in your Dockerfile layer to avoid repeated startup delays (~300MB model)
+2) Use unique doc_id values per file to prevent silent overwrites.
+3) It confirms model load and DB connectivity before ingestion — saves debugging time.
+4) Ask factual questions from your PDF to verify grounding and relevance scoring.
+5) Read the “used_model” field:
+```json
+"used_model": {"embedding": "intfloat/e5-small-v2", "llm": "gpt-4o-mini"}
+```
+If "llm": null, the system is in fallback mode.
+6) Very large prompts can exceed token limits and trigger truncation on Azure; concise questions yield clearer results.
+7) Use ```az containerapp logs show``` to confirm live queries; the backend logs include chunk count and LLM call duration.
+8) If repo is public, automated Azure pulls are allowed; otherwise, use an ACR authentication step.
+
+
+## ⚠️ Common Pitfalls
+1) Health check passes locally, fails on Azure - Missing <DATABASE_URL> or <AZURE_OPENAI_API_KEY> in container environment.
+2) Fallback triggers even when API key is valid - deployment name, endpoint mismatch or typo
+3) Docker image rebuilds are slow - Model re-download each build
+Keep ```RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('intfloat/e5-small-v2')"``` above ```COPY``` in Dockerfile.
