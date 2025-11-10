@@ -21,6 +21,3 @@ docker/init/*.sql~
 .DS_Store
 Thumbs.db
 .vscode/
-
-# Custom files
-sample/
