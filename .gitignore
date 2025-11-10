@@ -9,7 +9,9 @@ __pycache__/
 # Environment / secrets
 .env
 *.log
-.env.local
+.env.docker
+.env.azure
+.rag_vars.sh
 
 # Docker volumes
 pgdata/
@@ -19,3 +21,6 @@ docker/init/*.sql~
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Custom files
+sample/
