@@ -24,12 +24,8 @@ RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 
 COPY requirements.txt /workspace/backend/requirements.txt
 RUN pip install --no-cache-dir -r /workspace/backend/requirements.txt
 
-# (Optional) Warm the HF cache to avoid cold starts
-# ENV HF_HOME=/workspace/.cache/huggingface
-# RUN python - <<'PY'
-# from sentence_transformers import SentenceTransformer
-# SentenceTransformer('intfloat/e5-small-v2')
-# PY
+# Warm the HF cache to avoid cold starts
+RUN python -c "from sentence_transformers import SentenceTransformer as S; S('intfloat/e5-small-v2')"
 
 # Your source
 COPY . /workspace/backend/
