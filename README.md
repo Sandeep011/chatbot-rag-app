@@ -104,7 +104,7 @@ chatbot-rag-app/
 
 ---
 
-## ⚡ Quickstart (ADDING SNAPSHOTS TODAY, NOV 10, 2025)
+## ⚡ Quickstart
 
 Review the requirements.txt, .env, .yml, and docker files to ensure you have the necessary credentials, parameters, and tools to perform the 
 steps that follow.
@@ -160,14 +160,12 @@ FastAPI app is live
 Embedding model intfloat/e5-small-v2 successfully loaded
 Database connected (with pgvector enabled)
 
-<!-- ![Successful Startup from docker compose](helper_images/.png) -->
-
 ### 4) Verify Health Check
 
 Test your setup:
 
 ```bash
-curl -fsS http://localhost:8000/health
+curl -fsS http://localhost:8000/health | jq
 ```
 
 Expected output:
@@ -176,7 +174,7 @@ Expected output:
 {"status":"OK","model":"intfloat/e5-small-v2"}
 ```
 
-<!-- ![Health checkup](helper_images/verify_health.png) -->
+![Health checkup](helper_images/verify_health.png)
 
 ### 5) Cloud Deployment (Azure)
 
@@ -193,7 +191,6 @@ docker push <docker-username>/<app-name>:<cloud-tag>
 # Update Azure Container App
 az containerapp update -g <resource-group> -n <app-name> \
   --image "docker.io/<docker-username>/<app-name>:<cloud-tag>"
-
 ```
 
 Verify cloud health:
@@ -212,7 +209,7 @@ Expected:
 
 This confirms your Azure Container App is live and connected to Azure PostgreSQL Flexible Server
 
-<!-- ![ACA dashboard](helper_images/.png) -->
+![ACA dashboard](helper_images/azure_container_app_dashboard.png)
 
 ### 6) Full Flow
 
@@ -220,25 +217,32 @@ Once running, test your pipeline end-to-end:
 
 ```bash
 # Ingest a PDF
-curl -fS -X POST "http://localhost:8000/ingest" \
+curl -fS -X POST "https://<APP_FQDN>/ingest" \
   -F "file=@/path/to/file/system.pdf" -F "doc_id=test-1"
 
 # Search across ingested documents
-curl -fS -X POST "http://localhost:8000/search" \
+curl -fS -X POST "https://<APP_FQDN>/search" \
   -H "Content-Type: application/json" \
   -d '{"query":"Tell me about system design."}'
+```
 
+![Search gets top chunks](helper_images/search_api_azure.png)
+
+```bash
 # Get LLM-generated answer (with fallback)
-curl -fS -X POST "http://localhost:8000/answer" \
+curl -fS -X POST "https://<APP_FQDN>/answer" \
   -H "Content-Type: application/json" \
   -d '{"query":"What is system design?"}'
 ```
+
+![LLM generated answer](helper_images/answer_api_azure.png)
 
 The ```/answer``` endpoint will:
 1) Attempt LLM-based answer generation using Azure GPT-4o-mini
 2) Automatically fallback to extractive summarization if the LLM is unreachable
 3) Return structured JSON with answer, bullets, citations, and timing info
 
+---
 
 ## 🌱 Planned Enhancements
 
@@ -253,6 +257,7 @@ The ```/answer``` endpoint will:
 7) Persistent conversation memory so users can ask follow-up questions.  
 8) Custom LLM routing, allowing users to switch between local summarization and Azure GPT-4o-mini on demand.
 
+---
 
 ## 💡 Usage Tips
 1) Model caching: Pre-download intfloat/e5-small-v2 in your Dockerfile layer to avoid repeated startup delays (~300MB model)
@@ -268,9 +273,12 @@ If "llm": null, the system is in fallback mode.
 7) Use ```az containerapp logs show``` to confirm live queries; the backend logs include chunk count and LLM call duration.  
 8) If repo is public, automated Azure pulls are allowed; otherwise, use an ACR authentication step.
 
+---
 
 ## ⚠️ Common Pitfalls
 1) Health check passes locally, fails on Azure - Missing ```DATABASE_URL``` or ```AZURE_OPENAI_API_KEY``` in container environment.
 2) Fallback triggers even when API key is valid - deployment name, endpoint mismatch or typo
 3) Docker image rebuilds are slow - Model re-download each build
 Keep ```RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('intfloat/e5-small-v2')"``` above ```COPY``` in Dockerfile.
+
+---
